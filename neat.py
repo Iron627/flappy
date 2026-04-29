@@ -87,4 +87,13 @@ class NEAT:
         }
         self.connections.append(new_conn_in)
         self.connections.append(new_conn_out)
-        
+    def mutate(self):
+        for c in self.connections:
+            if random.random() < 0.1:
+                c["weight"] += random.uniform(-0.5, 0.5)
+
+        if random.random() < 0.05:
+            self.add_connection()
+
+        if random.random() < 0.03:
+            self.add_node()
