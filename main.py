@@ -3,10 +3,10 @@ import copy
 import pygame
 import neat
 import numpy as np
-
+import json
 WIDTH = 800
 HEIGHT = 600
-best_play = 0
+best_play = 1
 FPS = 60 if best_play else 0
 BLACK = (0, 0, 0)
 GREEN = (0, 220, 0)
@@ -95,8 +95,8 @@ class Game:
         self.best_fitness = 0
         self.generation += 1
         if parent:
-            with open("best_genome.txt", "w") as f:
-                f.write(str(parent.neuron.genome))
+            with open("best_genome.json", "w") as f:
+                json.dump(parent.neuron.genome, f)
         for _ in range(POPULATION_SIZE):
             bird = Bird()
             if parent:
@@ -107,12 +107,8 @@ class Game:
             self.birds = [Bird() for _ in range(POPULATION_SIZE)]
 
     def load_best_genome(self, bird):
-        with open("best_genome.txt") as f:
-            bird.neuron.genome = eval(
-                f.read(),
-                {"__builtins__": {}},
-                {"array": np.array, "np": np},
-            )
+        with open("best_genome.json") as f:
+            bird.neuron.genome = json.load(f)
 
     def run(self):
         while True:

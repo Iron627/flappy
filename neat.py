@@ -120,3 +120,16 @@ class NEAT:
                     tot_signals += values.get(conn["in"],0) * conn["weight"]
             values[node] = np.tanh(tot_signals)
         return values[10**9] > 0
+    @property
+    def genome(self):
+        return {
+            "nodes": self.nodes,
+            "connections": self.connections,
+            "next_node_id": self.next_node_id
+        }
+
+    @genome.setter
+    def genome(self, data):
+        self.nodes = {int(k): v for k, v in data["nodes"].items()}
+        self.connections = data["connections"]
+        self.next_node_id = data["next_node_id"]
