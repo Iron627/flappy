@@ -6,7 +6,7 @@ import numpy as np
 
 WIDTH = 800
 HEIGHT = 600
-best_play = 1
+best_play = 0
 FPS = 60 if best_play else 0
 BLACK = (0, 0, 0)
 GREEN = (0, 220, 0)
@@ -18,7 +18,7 @@ class Bird:
     def __init__(self):
         self.x = 160
         self.size = 32
-        self.neuron = neat.NEAT_Lite()
+        self.neuron = neat.NEAT()
         self.reset()
 
     def reset(self):
