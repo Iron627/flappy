@@ -7,8 +7,8 @@ import json
 WIDTH = 800
 HEIGHT = 600
 best_play = 0
-draw = 0 
-FPS = 60 if best_play else 0
+draw = 1
+FPS = 60
 BLACK = (0, 0, 0)
 GREEN = (0, 220, 0)
 WHITE = (230, 230, 230)
@@ -76,6 +76,7 @@ class Game:
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 48)
+        self.best_score = 0
         self.reset()
 
     def reset(self):
@@ -125,12 +126,20 @@ class Game:
             
 
     def events(self):
+        global FPS, draw, best_play
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.quit()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.quit()
+                if event.key == pygame.K_c:
+                    FPS = 0 if FPS else 60
+                if event.key == pygame.K_d:
+                    draw = not draw
+                if event.key == pygame.K_b:
+                    best_play = not best_play
+                    self.reset()
                 
                 
 
@@ -162,6 +171,7 @@ class Game:
             if not pipe.passed and pipe.x + pipe.w < self.birds[0].x:
                 pipe.passed = True
                 self.score += 1
+                self.best_score = max(self.best_score, self.score)
                 for bird in self.birds:
                     if bird.alive:
                         bird.fitness += 10
@@ -176,6 +186,8 @@ class Game:
 
         self.best_fitness = max(bird.fitness for bird in self.birds)
         self.dead = not any(bird.alive for bird in self.birds)
+        if self.dead:
+                self.reset()
     def next_pipe_for(self, bird):
         for pipe in self.pipes:
             if pipe.x + pipe.w >= bird.x:
@@ -183,6 +195,14 @@ class Game:
         return self.pipes[0]
 
     def draw(self):
+        alive_count = sum(bird.alive for bird in self.birds)
+        mode_label = "Best Genome Play" if best_play else f"Alive: {alive_count} Generation: {self.generation}"
+        labels = [
+            mode_label,
+            f"Best Score: {self.best_score}",
+            f"Best Fitness: {self.best_fitness}",
+        ]
+
         if draw:
             self.screen.fill(BLACK)
             for pipe in self.pipes:
@@ -194,22 +214,19 @@ class Game:
             score = self.font.render(str(self.score), True, WHITE)
             self.screen.blit(score, (WIDTH // 2, HEIGHT-30))
 
-            alive_count = sum(bird.alive for bird in self.birds)
-            label = "Best Genome Play" if best_play else f"Alive: {alive_count} Generation: {self.generation}"
-            alive = self.font.render(label, True, WHITE)
-            self.screen.blit(alive, (20, 30))
+            for i, label in enumerate(labels):
+                text = self.font.render(label, True, WHITE)
+                self.screen.blit(text, (20, 30 + i * 45))
 
-            if self.dead:
-                self.reset()
+             
         else:
             self.screen.fill(BLACK)
             score = self.font.render(str(self.score), True, WHITE)
             self.screen.blit(score, (WIDTH // 2, HEIGHT-30))
 
-            alive_count = sum(bird.alive for bird in self.birds)
-            label = "Best Genome Play" if best_play else f"Alive: {alive_count} Generation: {self.generation}"
-            alive = self.font.render(label, True, WHITE)
-            self.screen.blit(alive, (20, 30))
+            for i, label in enumerate(labels):
+                text = self.font.render(label, True, WHITE)
+                self.screen.blit(text, (20, 30 + i * 45))
 
         pygame.display.flip()
 
