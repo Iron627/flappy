@@ -44,16 +44,18 @@ class NEAT:
             2: "input",
             3: "input",
             4: "input",
-            5: "output",
+            5:"bias",
+            6: "output",
         }
-        self.connections = {
-            {"in": 0, "out": 5, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 1, "out": 5, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 2, "out": 5, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 3, "out": 5, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 4, "out": 5, "weight": random.uniform(-1, 1), "enabled": True}
+        self.connections = [
+            {"in": 0, "out": 6, "weight": random.uniform(-1, 1), "enabled": True},
+            {"in": 1, "out": 6, "weight": random.uniform(-1, 1), "enabled": True},
+            {"in": 2, "out": 6, "weight": random.uniform(-1, 1), "enabled": True},
+            {"in": 3, "out": 6, "weight": random.uniform(-1, 1), "enabled": True},
+            {"in": 4, "out": 6, "weight": random.uniform(-1, 1), "enabled": True},
+            {"in": 5, "out": 6, "weight": random.uniform(-1, 1), "enabled": True}
             
-            }
+            ]
     def mutate_connection(self):
         ins = self.nodes.keys()
         outs = [_ for _ in self.nodes.keys() if self.nodes[_] != "input"]
@@ -97,3 +99,5 @@ class NEAT:
 
         if random.random() < 0.03:
             self.add_node()
+    
+    
