@@ -45,15 +45,16 @@ class NEAT:
             3: "input",
             4: "input",
             5:"bias",
-            6: "output",
+            10**9: "output",
         }
+        self.next_node_id = 6
         self.connections = [
-            {"in": 0, "out": 6, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 1, "out": 6, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 2, "out": 6, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 3, "out": 6, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 4, "out": 6, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 5, "out": 6, "weight": random.uniform(-1, 1), "enabled": True}
+            {"in": 0, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True},
+            {"in": 1, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True},
+            {"in": 2, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True},
+            {"in": 3, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True},
+            {"in": 4, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True},
+            {"in": 5, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True}
             
             ]
     def mutate_connection(self):
@@ -75,12 +76,13 @@ class NEAT:
             return
         conn = random.choice(enabled_connections)
         conn["enabled"] = False
-        new_node = max(self.nodes.keys()) + 1
+        new_node = self.next_node_id
+        self.next_node_id += 1
         self.nodes[new_node] = "hidden"
         new_conn_in = {
             "in": conn["in"],
             "out": new_node,
-            "weight": conn["weight"],
+            "weight": 1.0,
             "enabled": True
         }
         new_conn_out = {
@@ -104,7 +106,17 @@ class NEAT:
 
     def forward(self, inputs):
         values = {}
+
         for i, value in enumerate(inputs):
             values[i] = value
         values[5] = 1
-        
+        for node in sorted(self.nodes.keys()):
+            if self.nodes[node] in ["bias","input"]:
+                continue
+            
+            tot_signals = 0 
+            for conn in self.connections:
+                if conn["out"] == node and conn["enabled"]:
+                    tot_signals += values.get(conn["in"],0) * conn["weight"]
+            values[node] = np.tanh(tot_signals)
+        return values[10**9] > 0
