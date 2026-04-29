@@ -59,7 +59,7 @@ class NEAT:
             ]
     def mutate_connection(self):
         ins = list(self.nodes.keys())
-        outs = [_ for _ in self.nodes.keys() if self.nodes[_] != "input"]
+        outs = [_ for _ in self.nodes.keys() if self.nodes[_] not in ["input","bias"]]
         a = random.choice(ins)
         b = random.choice(outs)
         if a == b:

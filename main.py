@@ -6,7 +6,7 @@ import numpy as np
 import json
 WIDTH = 800
 HEIGHT = 600
-best_play = 1
+best_play = 0
 FPS = 60 if best_play else 0
 BLACK = (0, 0, 0)
 GREEN = (0, 220, 0)
@@ -95,16 +95,19 @@ class Game:
         self.best_fitness = 0
         self.generation += 1
         if parent:
+            self.birds = []
+            for _ in range(POPULATION_SIZE):
+                bird = Bird()
+                if parent:
+                    bird.neuron.genome = copy.deepcopy(parent.neuron.genome)
+                    bird.neuron.mutate()
+                self.birds.append(bird)
             with open("best_genome.json", "w") as f:
                 json.dump(parent.neuron.genome, f)
-        for _ in range(POPULATION_SIZE):
-            bird = Bird()
-            if parent:
-                bird.neuron.genome = copy.deepcopy(parent.neuron.genome)
-                bird.neuron.mutate()
-            self.birds.append(bird)
         else:
             self.birds = [Bird() for _ in range(POPULATION_SIZE)]
+        
+        
 
     def load_best_genome(self, bird):
         with open("best_genome.json") as f:
