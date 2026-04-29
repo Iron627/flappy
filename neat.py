@@ -57,11 +57,13 @@ class NEAT:
             
             ]
     def mutate_connection(self):
-        ins = self.nodes.keys()
+        ins = list(self.nodes.keys())
         outs = [_ for _ in self.nodes.keys() if self.nodes[_] != "input"]
         a = random.choice(ins)
         b = random.choice(outs)
         if a == b:
+            return
+        if a > b:
             return
         for conn in self.connections:
             if conn["in"] == a and conn["out"] == b:
@@ -74,7 +76,7 @@ class NEAT:
         conn = random.choice(enabled_connections)
         conn["enabled"] = False
         new_node = max(self.nodes.keys()) + 1
-        self.nodes[new_node] = {new_node : "hidden"}
+        self.nodes[new_node] = "hidden"
         new_conn_in = {
             "in": conn["in"],
             "out": new_node,
@@ -95,9 +97,14 @@ class NEAT:
                 c["weight"] += random.uniform(-0.5, 0.5)
 
         if random.random() < 0.05:
-            self.add_connection()
+            self.mutate_connection()
 
         if random.random() < 0.03:
-            self.add_node()
-    
-    
+            self.mutate_node()
+
+    def forward(self, inputs):
+        values = {}
+        for i, value in enumerate(inputs):
+            values[i] = value
+        values[5] = 1
+        
