@@ -73,7 +73,7 @@ class NEAT:
             return
         conn = random.choice(enabled_connections)
         conn["enabled"] = False
-        new_node = self.nodes.keys.max() + 1
+        new_node = max(self.nodes.keys()) + 1
         self.nodes[new_node] = {new_node : "hidden"}
         new_conn_in = {
             "in": conn["inn"],
