@@ -7,6 +7,7 @@ import json
 WIDTH = 800
 HEIGHT = 600
 best_play = 0
+draw = 0 
 FPS = 60 if best_play else 0
 BLACK = (0, 0, 0)
 GREEN = (0, 220, 0)
@@ -182,23 +183,33 @@ class Game:
         return self.pipes[0]
 
     def draw(self):
-        self.screen.fill(BLACK)
-        for pipe in self.pipes:
-            pipe.draw(self.screen)
-        for bird in self.birds:
-            if bird.alive:
-                bird.draw(self.screen)
+        if draw:
+            self.screen.fill(BLACK)
+            for pipe in self.pipes:
+                pipe.draw(self.screen)
+            for bird in self.birds:
+                if bird.alive:
+                    bird.draw(self.screen)
 
-        score = self.font.render(str(self.score), True, WHITE)
-        self.screen.blit(score, (WIDTH // 2, HEIGHT-30))
+            score = self.font.render(str(self.score), True, WHITE)
+            self.screen.blit(score, (WIDTH // 2, HEIGHT-30))
 
-        alive_count = sum(bird.alive for bird in self.birds)
-        label = "Best Genome Play" if best_play else f"Alive: {alive_count} Generation: {self.generation}"
-        alive = self.font.render(label, True, WHITE)
-        self.screen.blit(alive, (20, 30))
+            alive_count = sum(bird.alive for bird in self.birds)
+            label = "Best Genome Play" if best_play else f"Alive: {alive_count} Generation: {self.generation}"
+            alive = self.font.render(label, True, WHITE)
+            self.screen.blit(alive, (20, 30))
 
-        if self.dead:
-            self.reset()
+            if self.dead:
+                self.reset()
+        else:
+            self.screen.fill(BLACK)
+            score = self.font.render(str(self.score), True, WHITE)
+            self.screen.blit(score, (WIDTH // 2, HEIGHT-30))
+
+            alive_count = sum(bird.alive for bird in self.birds)
+            label = "Best Genome Play" if best_play else f"Alive: {alive_count} Generation: {self.generation}"
+            alive = self.font.render(label, True, WHITE)
+            self.screen.blit(alive, (20, 30))
 
         pygame.display.flip()
 
