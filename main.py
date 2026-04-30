@@ -1,8 +1,9 @@
 import random
 import copy
+from pathlib import Path
+
 import pygame
 import neat
-import numpy as np
 import genome_util
 
 WIDTH = 800
@@ -14,7 +15,6 @@ BLACK = (0, 0, 0)
 GREEN = (0, 220, 0)
 WHITE = (230, 230, 230)
 GRAY = (80, 80, 80)
-DARK_GRAY = (40, 40, 40)
 POPULATION_SIZE = 100
 
 
@@ -82,11 +82,9 @@ class Game:
         self.button_font = pygame.font.Font(None, 32)
         self.best_score = 0
         self.generation_scores = []
-        self.latest_completed_top_genome = None
-        self.latest_completed_generation = None
-        self.latest_completed_score = None
-        self.manual_save_status = "No completed generation yet"
-        self.manual_save_button = pygame.Rect(WIDTH - 260, 20, 230, 48)
+        self.loaded_genome_path = None
+        self.load_genome_status = "Using best saved genome"
+        self.load_genome_button = pygame.Rect(WIDTH - 280, 20, 250, 48)
         self.reset()
 
     def reset(self, record_completed=True):
@@ -109,12 +107,7 @@ class Game:
         self.generation += 1
         if parent:
             if record_completed:
-                completed_generation = self.generation - 1
                 self.generation_scores.append(score_achieved)
-                self.latest_completed_top_genome = copy.deepcopy(parent.neuron.genome)
-                self.latest_completed_generation = completed_generation
-                self.latest_completed_score = score_achieved
-                self.manual_save_status = f"Ready: gen {completed_generation}, score {score_achieved}"
             self.birds = []
             for _ in range(POPULATION_SIZE):
                 bird = Bird()
@@ -127,29 +120,45 @@ class Game:
         else:
             self.birds = [Bird() for _ in range(POPULATION_SIZE)]
 
-    def save_manual_genome(self):
-        if self.latest_completed_top_genome is None:
-            self.manual_save_status = "No completed generation yet"
-            return
-
-        saved = genome_util.save_manual_genome(
-            self.latest_completed_top_genome,
-            self.latest_completed_generation,
-            self.latest_completed_score,
-        )
-        if not saved:
-            self.manual_save_status = f"Already saved gen {self.latest_completed_generation}"
-            return
-
-        self.manual_save_status = f"Saved gen {self.latest_completed_generation}"
-
     def average_generation_score(self):
         if not self.generation_scores:
             return 0
         return sum(self.generation_scores) / len(self.generation_scores)
 
     def load_best_genome(self, bird):
-        bird.neuron.genome = genome_util.load_best_genome()
+        if self.loaded_genome_path:
+            bird.neuron.genome = genome_util.load_genome_file(self.loaded_genome_path)
+        else:
+            bird.neuron.genome = genome_util.load_best_genome()
+
+    def choose_genome_file(self):
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+
+            root = tk.Tk()
+            root.withdraw()
+            genome_path = filedialog.askopenfilename(
+                title="Load genome JSON",
+                filetypes=(("JSON files", "*.json"), ("All files", "*.*")),
+            )
+            root.destroy()
+        except Exception as error:
+            self.load_genome_status = f"Could not open file picker: {error}"
+            return
+
+        if not genome_path:
+            return
+
+        try:
+            genome_util.load_genome_file(genome_path)
+        except (OSError, ValueError) as error:
+            self.load_genome_status = f"Could not load JSON: {error}"
+            return
+
+        self.loaded_genome_path = genome_path
+        self.load_genome_status = f"Loaded: {Path(genome_path).name}"
+        self.reset(record_completed=False)
 
     def run(self):
         while True:
@@ -167,8 +176,8 @@ class Game:
             if event.type == pygame.QUIT:
                 self.quit()
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if self.manual_save_button.collidepoint(event.pos):
-                    self.save_manual_genome()
+                if best_play and self.load_genome_button.collidepoint(event.pos):
+                    self.choose_genome_file()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.quit()
@@ -235,13 +244,15 @@ class Game:
 
     def draw(self):
         alive_count = sum(bird.alive for bird in self.birds)
-        mode_label = "Best Genome Play" if best_play else f"Alive: {alive_count} Generation: {self.generation}"
-        labels = [
-            mode_label,
-            f"Best Score: {self.best_score}",
-            f"Average Score: {self.average_generation_score():.2f}",
-            f"Best Fitness: {self.best_fitness}",
-        ]
+        if best_play:
+            labels = ["Best Genome Play"]
+        else:
+            labels = [
+                f"Alive: {alive_count} Generation: {self.generation}",
+                f"Best Score: {self.best_score}",
+                f"Average Score: {self.average_generation_score():.2f}",
+                f"Best Fitness: {self.best_fitness}",
+            ]
 
         if draw:
             self.screen.fill(BLACK)
@@ -257,7 +268,7 @@ class Game:
             for i, label in enumerate(labels):
                 text = self.font.render(label, True, WHITE)
                 self.screen.blit(text, (20, 30 + i * 45))
-            self.draw_manual_save_button()
+            self.draw_load_genome_button()
 
              
         else:
@@ -268,21 +279,23 @@ class Game:
             for i, label in enumerate(labels):
                 text = self.font.render(label, True, WHITE)
                 self.screen.blit(text, (20, 30 + i * 45))
-            self.draw_manual_save_button()
+            self.draw_load_genome_button()
 
         pygame.display.flip()
 
-    def draw_manual_save_button(self):
-        button_color = GRAY if self.latest_completed_top_genome else DARK_GRAY
-        pygame.draw.rect(self.screen, button_color, self.manual_save_button, border_radius=8)
-        pygame.draw.rect(self.screen, WHITE, self.manual_save_button, 2, border_radius=8)
+    def draw_load_genome_button(self):
+        if not best_play:
+            return
 
-        label = self.button_font.render("Save Top Bird", True, WHITE)
-        label_rect = label.get_rect(center=self.manual_save_button.center)
+        pygame.draw.rect(self.screen, GRAY, self.load_genome_button, border_radius=8)
+        pygame.draw.rect(self.screen, WHITE, self.load_genome_button, 2, border_radius=8)
+
+        label = self.button_font.render("Load Genome JSON", True, WHITE)
+        label_rect = label.get_rect(center=self.load_genome_button.center)
         self.screen.blit(label, label_rect)
 
-        status = self.button_font.render(self.manual_save_status, True, WHITE)
-        self.screen.blit(status, (self.manual_save_button.x, self.manual_save_button.bottom + 8))
+        status = self.button_font.render(self.load_genome_status, True, WHITE)
+        self.screen.blit(status, (self.load_genome_button.x, self.load_genome_button.bottom + 8))
 
     def quit(self):
         pygame.quit()
