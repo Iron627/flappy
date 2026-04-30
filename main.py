@@ -4,6 +4,8 @@ import pygame
 import neat
 import numpy as np
 import json
+from pathlib import Path
+
 WIDTH = 800
 HEIGHT = 600
 best_play = 0
@@ -12,7 +14,12 @@ FPS = 60
 BLACK = (0, 0, 0)
 GREEN = (0, 220, 0)
 WHITE = (230, 230, 230)
+GRAY = (80, 80, 80)
+DARK_GRAY = (40, 40, 40)
 POPULATION_SIZE = 100
+BEST_GENOME_DIR = Path("best_genomes")
+MANUAL_SAVE_DIR = BEST_GENOME_DIR / "manual_saves"
+BEST_GENOME_PREFIX = "best_genome_"
 
 
 class Bird:
@@ -72,14 +79,21 @@ class Game:
     def __init__(self):
         pygame.init()
         self.birds = []
-        self.generation = 1 
+        self.generation = 0
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 48)
+        self.button_font = pygame.font.Font(None, 32)
         self.best_score = 0
+        self.generation_scores = []
+        self.latest_completed_top_genome = None
+        self.latest_completed_generation = None
+        self.latest_completed_score = None
+        self.manual_save_status = "No completed generation yet"
+        self.manual_save_button = pygame.Rect(WIDTH - 260, 20, 230, 48)
         self.reset()
 
-    def reset(self):
+    def reset(self, record_completed=True):
         if best_play:
             self.pipes = [Pipe(WIDTH + i * 260) for i in range(3)]
             self.score = 0
@@ -91,12 +105,20 @@ class Game:
 
         best_birds = sorted(self.birds, key=lambda g: g.fitness, reverse=True)
         parent = copy.deepcopy(best_birds[0]) if best_birds else None
+        score_achieved = getattr(self, "score", 0)
         self.pipes = [Pipe(WIDTH + i * 260) for i in range(3)]
         self.score = 0
         self.dead = False
         self.best_fitness = 0
         self.generation += 1
         if parent:
+            if record_completed:
+                completed_generation = self.generation - 1
+                self.generation_scores.append(score_achieved)
+                self.latest_completed_top_genome = copy.deepcopy(parent.neuron.genome)
+                self.latest_completed_generation = completed_generation
+                self.latest_completed_score = score_achieved
+                self.manual_save_status = f"Ready: gen {completed_generation}, score {score_achieved}"
             self.birds = []
             for _ in range(POPULATION_SIZE):
                 bird = Bird()
@@ -104,15 +126,63 @@ class Game:
                     bird.neuron.genome = copy.deepcopy(parent.neuron.genome)
                     bird.neuron.mutate()
                 self.birds.append(bird)
-            with open("best_genome.json", "w") as f:
-                json.dump(parent.neuron.genome, f)
+            if record_completed:
+                self.save_best_genome(parent.neuron.genome, score_achieved)
         else:
             self.birds = [Bird() for _ in range(POPULATION_SIZE)]
         
         
 
+    def save_best_genome(self, genome, score):
+        BEST_GENOME_DIR.mkdir(exist_ok=True)
+        genome_path = BEST_GENOME_DIR / f"{BEST_GENOME_PREFIX}{score}.json"
+        if genome_path.exists():
+            return
+        with genome_path.open("w") as f:
+            json.dump(genome, f)
+
+    def save_manual_genome(self):
+        if self.latest_completed_top_genome is None:
+            self.manual_save_status = "No completed generation yet"
+            return
+
+        MANUAL_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+        genome_path = MANUAL_SAVE_DIR / (
+            f"manual_best_genome_gen_{self.latest_completed_generation}"
+            f"_score_{self.latest_completed_score}.json"
+        )
+        if genome_path.exists():
+            self.manual_save_status = f"Already saved gen {self.latest_completed_generation}"
+            return
+
+        with genome_path.open("w") as f:
+            json.dump(self.latest_completed_top_genome, f)
+        self.manual_save_status = f"Saved gen {self.latest_completed_generation}"
+
+    def average_generation_score(self):
+        if not self.generation_scores:
+            return 0
+        return sum(self.generation_scores) / len(self.generation_scores)
+
+    def best_genome_files(self):
+        if not BEST_GENOME_DIR.exists():
+            return []
+
+        genome_files = []
+        for genome_path in BEST_GENOME_DIR.glob(f"{BEST_GENOME_PREFIX}*.json"):
+            score_text = genome_path.stem.removeprefix(BEST_GENOME_PREFIX)
+            if score_text.isdigit():
+                genome_files.append((int(score_text), genome_path))
+        return genome_files
+
     def load_best_genome(self, bird):
-        with open("best_genome.json") as f:
+        genome_files = self.best_genome_files()
+        if genome_files:
+            _, genome_path = max(genome_files, key=lambda genome_file: genome_file[0])
+        else:
+            genome_path = Path("best_genome.json")
+
+        with genome_path.open() as f:
             bird.neuron.genome = json.load(f)
 
     def run(self):
@@ -130,6 +200,9 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.quit()
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.manual_save_button.collidepoint(event.pos):
+                    self.save_manual_genome()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.quit()
@@ -139,7 +212,7 @@ class Game:
                     draw = not draw
                 if event.key == pygame.K_b:
                     best_play = not best_play
-                    self.reset()
+                    self.reset(record_completed=False)
                 
                 
 
@@ -200,6 +273,7 @@ class Game:
         labels = [
             mode_label,
             f"Best Score: {self.best_score}",
+            f"Average Score: {self.average_generation_score():.2f}",
             f"Best Fitness: {self.best_fitness}",
         ]
 
@@ -217,6 +291,7 @@ class Game:
             for i, label in enumerate(labels):
                 text = self.font.render(label, True, WHITE)
                 self.screen.blit(text, (20, 30 + i * 45))
+            self.draw_manual_save_button()
 
              
         else:
@@ -227,8 +302,21 @@ class Game:
             for i, label in enumerate(labels):
                 text = self.font.render(label, True, WHITE)
                 self.screen.blit(text, (20, 30 + i * 45))
+            self.draw_manual_save_button()
 
         pygame.display.flip()
+
+    def draw_manual_save_button(self):
+        button_color = GRAY if self.latest_completed_top_genome else DARK_GRAY
+        pygame.draw.rect(self.screen, button_color, self.manual_save_button, border_radius=8)
+        pygame.draw.rect(self.screen, WHITE, self.manual_save_button, 2, border_radius=8)
+
+        label = self.button_font.render("Save Top Bird", True, WHITE)
+        label_rect = label.get_rect(center=self.manual_save_button.center)
+        self.screen.blit(label, label_rect)
+
+        status = self.button_font.render(self.manual_save_status, True, WHITE)
+        self.screen.blit(status, (self.manual_save_button.x, self.manual_save_button.bottom + 8))
 
     def quit(self):
         pygame.quit()
