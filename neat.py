@@ -1,39 +1,61 @@
+import copy
+import json
 import random
+from pathlib import Path
+
 import numpy as np
 
 
-class NEAT_Lite:
-    def __init__(self):
-        self.genome = {
-    "weight": np.array([[random.uniform(-1, 1) for _ in range(3)] for _ in range(5)]),
-    "bias": np.array([random.uniform(-1, 1) for _ in range(3)]),
-    "weight1": np.array([random.uniform(-1, 1) for _ in range(3)]),
-    "bias1": random.uniform(-1, 1)
-}
-        pass
-    def forward(self, inputs):
-        inputs = np.array(inputs)
-        hidden = inputs@self.genome["weight"] + self.genome["bias"]
-        hidden = np.tanh(hidden)
-        layer_output = hidden@self.genome["weight1"] + self.genome["bias1"]
-        return np.tanh(layer_output) > 0
+BEST_GENOME_DIR = Path("best_genomes")
+MANUAL_SAVE_DIR = BEST_GENOME_DIR / "manual_saves"
+BEST_GENOME_PREFIX = "best_genome_"
 
-    def mutate(self):
-        for i in range(self.genome["weight"].shape[0]):
-            for j in range(self.genome["weight"].shape[1]):
-                if random.random() < 0.1:
-                    self.genome["weight"][i][j] += random.uniform(-0.5, 0.5)
 
-        for i in range(len(self.genome["bias"])):
-            if random.random() < 0.1:
-                self.genome["bias"][i] += random.uniform(-0.5, 0.5)
+def save_best_genome(genome, score):
+    BEST_GENOME_DIR.mkdir(exist_ok=True)
+    genome_path = BEST_GENOME_DIR / f"{BEST_GENOME_PREFIX}{score}.json"
+    if genome_path.exists():
+        return False
 
-        for i in range(len(self.genome["weight1"])):
-            if random.random() < 0.1:
-                self.genome["weight1"][i] += random.uniform(-0.5, 0.5)
+    with genome_path.open("w") as f:
+        json.dump(genome, f)
+    return True
 
-        if random.random() < 0.1:
-            self.genome["bias1"] += random.uniform(-0.5, 0.5)
+
+def save_manual_genome(genome, generation, score):
+    MANUAL_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+    genome_path = MANUAL_SAVE_DIR / f"manual_best_genome_gen_{generation}_score_{score}.json"
+    if genome_path.exists():
+        return False
+
+    with genome_path.open("w") as f:
+        json.dump(genome, f)
+    return True
+
+
+def best_genome_files():
+    if not BEST_GENOME_DIR.exists():
+        return []
+
+    genome_files = []
+    for genome_path in BEST_GENOME_DIR.glob(f"{BEST_GENOME_PREFIX}*.json"):
+        score_text = genome_path.stem.removeprefix(BEST_GENOME_PREFIX)
+        if score_text.isdigit():
+            genome_files.append((int(score_text), genome_path))
+    return genome_files
+
+
+def load_best_genome():
+    genome_files = best_genome_files()
+    if genome_files:
+        _, genome_path = max(genome_files, key=lambda genome_file: genome_file[0])
+    else:
+        genome_path = Path("best_genome.json")
+
+    with genome_path.open() as f:
+        return json.load(f)
+
+
 
         
 class NEAT:
@@ -175,3 +197,79 @@ class NEAT:
         self.nodes = {int(k): v for k, v in data["nodes"].items()}
         self.connections = data["connections"]
         self.next_node_id = data["next_node_id"]
+
+
+class Population:
+    def __init__(
+        self,
+        agent_factory,
+        size,
+        brain_attr="neuron",
+        fitness_attr="fitness",
+        genome_saver=None,
+    ):
+        self.agent_factory = agent_factory
+        self.size = size
+        self.brain_attr = brain_attr
+        self.fitness_attr = fitness_attr
+        self.genome_saver = genome_saver
+        self.agents = []
+        self.generation = 0
+        self.best_fitness = 0
+        self.generation_scores = []
+        self.latest_completed_top_genome = None
+        self.latest_completed_generation = None
+        self.latest_completed_score = None
+        self.create_initial_generation()
+
+    def _brain(self, agent):
+        return getattr(agent, self.brain_attr)
+
+    def _fitness(self, agent):
+        return getattr(agent, self.fitness_attr, 0)
+
+    def top_agent(self):
+        return max(self.agents, key=self._fitness, default=None)
+
+    def update_best_fitness(self):
+        self.best_fitness = max((self._fitness(agent) for agent in self.agents), default=0)
+        return self.best_fitness
+
+    def average_score(self):
+        if not self.generation_scores:
+            return 0
+        return sum(self.generation_scores) / len(self.generation_scores)
+
+    def create_initial_generation(self):
+        self.generation = 1
+        self.agents = [self.agent_factory() for _ in range(self.size)]
+        self.update_best_fitness()
+
+    def evolve(self, score=0, record_completed=True, save_best=None):
+        if save_best is None:
+            save_best = record_completed
+
+        parent = self.top_agent()
+        if not parent:
+            self.create_initial_generation()
+            return
+
+        parent_genome = copy.deepcopy(self._brain(parent).genome)
+        if record_completed:
+            completed_generation = self.generation
+            self.generation_scores.append(score)
+            self.latest_completed_top_genome = copy.deepcopy(parent_genome)
+            self.latest_completed_generation = completed_generation
+            self.latest_completed_score = score
+        if save_best and self.genome_saver:
+            self.genome_saver(parent_genome, score)
+
+        self.generation += 1
+        new_agents = []
+        for _ in range(self.size):
+            agent = self.agent_factory()
+            getattr(agent, self.brain_attr).genome = copy.deepcopy(parent_genome)
+            getattr(agent, self.brain_attr).mutate()
+            new_agents.append(agent)
+        self.agents = new_agents
+        self.update_best_fitness()

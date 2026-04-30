@@ -2,8 +2,6 @@ import random
 import copy
 import pygame
 import neat
-import numpy as np
-import genome_util
 
 WIDTH = 800
 HEIGHT = 600
@@ -79,31 +77,31 @@ class Pipe:
 class Game:
     def __init__(self):
         pygame.init()
-        self.birds = []
-        self.generation = 0
+        self.population = neat.Population(
+            Bird,
+            POPULATION_SIZE,
+            genome_saver=neat.save_best_genome,
+        )
+        self.birds = self.population.agents
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 48)
         self.button_font = pygame.font.Font(None, 32)
         self.best_score = 0
-        self.generation_scores = []
-        self.latest_completed_top_genome = None
-        self.latest_completed_generation = None
-        self.latest_completed_score = None
         self.manual_save_status = "No completed generation yet"
         self.manual_save_button = pygame.Rect(WIDTH - 260, 20, 230, 48)
         self.training_state = None
+        self.initialized = False
         self.reset()
 
     def save_training_state(self):
         self.training_state = {
-            "birds": copy.deepcopy(self.birds),
             "pipes": copy.deepcopy(self.pipes),
             "score": self.score,
             "dead": self.dead,
-            "best_fitness": self.best_fitness,
-            "generation": self.generation,
             "best_score": self.best_score,
+            "population": copy.deepcopy(self.population),
+            "manual_save_status": self.manual_save_status,
         }
 
     def restore_training_state(self):
@@ -112,13 +110,13 @@ class Game:
             self.reset(record_completed=False)
             return
 
-        self.birds = self.training_state["birds"]
         self.pipes = self.training_state["pipes"]
         self.score = self.training_state["score"]
         self.dead = self.training_state["dead"]
-        self.best_fitness = self.training_state["best_fitness"]
-        self.generation = self.training_state["generation"]
         self.best_score = self.training_state["best_score"]
+        self.population = self.training_state["population"]
+        self.birds = self.population.agents
+        self.manual_save_status = self.training_state["manual_save_status"]
         self.training_state = None
 
     def toggle_best_play(self):
@@ -137,62 +135,46 @@ class Game:
             self.pipes = [Pipe(WIDTH + i * 260) for i in range(3)]
             self.score = 0
             self.dead = False
-            self.best_fitness = 0
             self.birds = [Bird()]
             self.load_best_genome(self.birds[0])
             return
 
-        best_birds = sorted(self.birds, key=lambda g: g.fitness, reverse=True)
-        parent = copy.deepcopy(best_birds[0]) if best_birds else None
+        if not self.initialized:
+            self.pipes = [Pipe(WIDTH + i * 260) for i in range(3)]
+            self.score = 0
+            self.dead = False
+            self.initialized = True
+            return
+
         score_achieved = getattr(self, "score", 0)
         self.pipes = [Pipe(WIDTH + i * 260) for i in range(3)]
         self.score = 0
         self.dead = False
-        self.best_fitness = 0
-        self.generation += 1
-        if parent:
-            if record_completed:
-                completed_generation = self.generation - 1
-                self.generation_scores.append(score_achieved)
-                self.latest_completed_top_genome = copy.deepcopy(parent.neuron.genome)
-                self.latest_completed_generation = completed_generation
-                self.latest_completed_score = score_achieved
-                self.manual_save_status = f"Ready: gen {completed_generation}, score {score_achieved}"
-            self.birds = []
-            for _ in range(POPULATION_SIZE):
-                bird = Bird()
-                if parent:
-                    bird.neuron.genome = copy.deepcopy(parent.neuron.genome)
-                    bird.neuron.mutate()
-                self.birds.append(bird)
-            if record_completed:
-                genome_util.save_best_genome(parent.neuron.genome, score_achieved)
-        else:
-            self.birds = [Bird() for _ in range(POPULATION_SIZE)]
+        self.population.evolve(score_achieved, record_completed=record_completed)
+        self.birds = self.population.agents
+        self.manual_save_status = (
+            f"Ready: gen {self.population.latest_completed_generation}, score {self.population.latest_completed_score}"
+            if self.population.latest_completed_top_genome is not None and record_completed else self.manual_save_status
+        )
 
     def save_manual_genome(self):
-        if self.latest_completed_top_genome is None:
+        if self.population.latest_completed_top_genome is None:
             self.manual_save_status = "No completed generation yet"
             return
 
-        saved = genome_util.save_manual_genome(
-            self.latest_completed_top_genome,
-            self.latest_completed_generation,
-            self.latest_completed_score,
+        saved = neat.save_manual_genome(
+            self.population.latest_completed_top_genome,
+            self.population.latest_completed_generation,
+            self.population.latest_completed_score,
         )
         if not saved:
-            self.manual_save_status = f"Already saved gen {self.latest_completed_generation}"
+            self.manual_save_status = f"Already saved gen {self.population.latest_completed_generation}"
             return
 
-        self.manual_save_status = f"Saved gen {self.latest_completed_generation}"
-
-    def average_generation_score(self):
-        if not self.generation_scores:
-            return 0
-        return sum(self.generation_scores) / len(self.generation_scores)
+        self.manual_save_status = f"Saved gen {self.population.latest_completed_generation}"
 
     def load_best_genome(self, bird):
-        bird.neuron.genome = genome_util.load_best_genome()
+        bird.neuron.genome = neat.load_best_genome()
 
     def run(self):
         while True:
@@ -265,7 +247,7 @@ class Game:
             if bird.alive and (bird.y < 0 or bird.y + bird.size > HEIGHT):
                 bird.alive = False
 
-        self.best_fitness = max(bird.fitness for bird in self.birds)
+        self.population.update_best_fitness()
         self.dead = not any(bird.alive for bird in self.birds)
         if self.dead:
                 self.reset()
@@ -278,10 +260,10 @@ class Game:
     def draw(self):
         alive_count = sum(bird.alive for bird in self.birds)
         labels = [] if best_play else [
-            f"Alive: {alive_count} Generation: {self.generation}",
+            f"Alive: {alive_count} Generation: {self.population.generation}",
             f"Best Score: {self.best_score}",
-            f"Average Score: {self.average_generation_score():.2f}",
-            f"Best Fitness: {self.best_fitness}",
+            f"Average Score: {self.population.average_score():.2f}",
+            f"Best Fitness: {self.population.best_fitness}",
         ]
 
         if draw:
@@ -316,7 +298,7 @@ class Game:
         pygame.display.flip()
 
     def draw_manual_save_button(self):
-        button_color = GRAY if self.latest_completed_top_genome else DARK_GRAY
+        button_color = GRAY if self.population.latest_completed_top_genome else DARK_GRAY
         pygame.draw.rect(self.screen, button_color, self.manual_save_button, border_radius=8)
         pygame.draw.rect(self.screen, WHITE, self.manual_save_button, 2, border_radius=8)
 
