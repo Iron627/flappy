@@ -59,26 +59,41 @@ def load_best_genome():
 
         
 class NEAT:
-    def __init__(self):
-        self.nodes = {
-            0 : "input",
-            1 : "input",
-            2: "input",
-            3: "input",
-            4: "input",
-            5:"bias",
-            10**9: "output",
-        }
-        self.next_node_id = 6
-        self.connections = [
-            {"in": 0, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 1, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 2, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 3, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 4, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True},
-            {"in": 5, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True}
-            
-            ]
+    def __init__(self, inputs, outputs):
+        self.num_inputs = inputs
+        self.num_outputs = outputs
+        self.nodes = {}
+        
+        for i in range(inputs):
+            self.nodes[i] = "input"
+        
+        self.bias_id = inputs
+        self.nodes[self.bias_id] = "bias"
+        
+
+        self.output_ids = list(range(10**9, 10**9 - outputs, -1))
+        for output_id in self.output_ids:
+            self.nodes[output_id] = "output"
+        
+        self.next_node_id = inputs + 1  
+        
+        self.connections = []
+        for input_id in range(inputs):
+            for output_id in self.output_ids:
+                self.connections.append({
+                    "in": input_id,
+                    "out": output_id,
+                    "weight": random.uniform(-1, 1),
+                    "enabled": True
+                })
+        
+        for output_id in self.output_ids:
+            self.connections.append({
+                "in": self.bias_id,
+                "out": output_id,
+                "weight": random.uniform(-1, 1),
+                "enabled": True
+            })
     def check_cycle(self, a, b):
         graph = {node: [] for node in self.nodes}
         for conn in self.connections:
@@ -173,7 +188,7 @@ class NEAT:
 
         for i, value in enumerate(inputs):
             values[i] = value
-        values[5] = 1
+        values[self.bias_id] = 1
         for node in self.topological_sort():
             if self.nodes[node] in ["bias","input"]:
                 continue
@@ -183,7 +198,11 @@ class NEAT:
                 if conn["out"] == node and conn["enabled"]:
                     tot_signals += values.get(conn["in"],0) * conn["weight"]
             values[node] = np.tanh(tot_signals)
-        return values[10**9] > 0
+        
+        # Return True if first output > 0 (for backward compatibility with single output)
+        if self.output_ids:
+            return values[self.output_ids[0]] > 0
+        return False
     @property
     def genome(self):
         return {

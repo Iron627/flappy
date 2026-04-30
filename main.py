@@ -25,7 +25,7 @@ class Bird:
             random.randint(60, 255),
             random.randint(60, 255),
         )
-        self.neuron = neat.NEAT()
+        self.neuron = neat.NEAT(5,1)
         self.reset()
 
     def reset(self):
