@@ -14,7 +14,6 @@ FPS = 60
 BLACK = (0, 0, 0)
 GREEN = (0, 220, 0)
 WHITE = (230, 230, 230)
-GRAY = (80, 80, 80)
 POPULATION_SIZE = 100
 
 
@@ -83,8 +82,7 @@ class Game:
         self.best_score = 0
         self.generation_scores = []
         self.loaded_genome_path = None
-        self.load_genome_status = "Using best saved genome"
-        self.load_genome_button = pygame.Rect(WIDTH - 280, 20, 250, 48)
+        self.load_genome_status = "Drop a genome JSON file onto the window"
         self.reset()
 
     def reset(self, record_completed=True):
@@ -131,25 +129,7 @@ class Game:
         else:
             bird.neuron.genome = genome_util.load_best_genome()
 
-    def choose_genome_file(self):
-        try:
-            import tkinter as tk
-            from tkinter import filedialog
-
-            root = tk.Tk()
-            root.withdraw()
-            genome_path = filedialog.askopenfilename(
-                title="Load genome JSON",
-                filetypes=(("JSON files", "*.json"), ("All files", "*.*")),
-            )
-            root.destroy()
-        except Exception as error:
-            self.load_genome_status = f"Could not open file picker: {error}"
-            return
-
-        if not genome_path:
-            return
-
+    def load_genome_file(self, genome_path):
         try:
             genome_util.load_genome_file(genome_path)
         except (OSError, ValueError) as error:
@@ -175,9 +155,8 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.quit()
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if best_play and self.load_genome_button.collidepoint(event.pos):
-                    self.choose_genome_file()
+            if event.type == pygame.DROPFILE:
+                self.load_genome_file(event.file)
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.quit()
@@ -268,7 +247,7 @@ class Game:
             for i, label in enumerate(labels):
                 text = self.font.render(label, True, WHITE)
                 self.screen.blit(text, (20, 30 + i * 45))
-            self.draw_load_genome_button()
+            self.draw_load_genome_status()
 
              
         else:
@@ -279,23 +258,16 @@ class Game:
             for i, label in enumerate(labels):
                 text = self.font.render(label, True, WHITE)
                 self.screen.blit(text, (20, 30 + i * 45))
-            self.draw_load_genome_button()
+            self.draw_load_genome_status()
 
         pygame.display.flip()
 
-    def draw_load_genome_button(self):
+    def draw_load_genome_status(self):
         if not best_play:
             return
 
-        pygame.draw.rect(self.screen, GRAY, self.load_genome_button, border_radius=8)
-        pygame.draw.rect(self.screen, WHITE, self.load_genome_button, 2, border_radius=8)
-
-        label = self.button_font.render("Load Genome JSON", True, WHITE)
-        label_rect = label.get_rect(center=self.load_genome_button.center)
-        self.screen.blit(label, label_rect)
-
         status = self.button_font.render(self.load_genome_status, True, WHITE)
-        self.screen.blit(status, (self.load_genome_button.x, self.load_genome_button.bottom + 8))
+        self.screen.blit(status, (20, 75))
 
     def quit(self):
         pygame.quit()
