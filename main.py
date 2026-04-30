@@ -3,8 +3,7 @@ import copy
 import pygame
 import neat
 import numpy as np
-import json
-from pathlib import Path
+import genome_util
 
 WIDTH = 800
 HEIGHT = 600
@@ -17,9 +16,6 @@ WHITE = (230, 230, 230)
 GRAY = (80, 80, 80)
 DARK_GRAY = (40, 40, 40)
 POPULATION_SIZE = 100
-BEST_GENOME_DIR = Path("best_genomes")
-MANUAL_SAVE_DIR = BEST_GENOME_DIR / "manual_saves"
-BEST_GENOME_PREFIX = "best_genome_"
 
 
 class Bird:
@@ -127,36 +123,24 @@ class Game:
                     bird.neuron.mutate()
                 self.birds.append(bird)
             if record_completed:
-                self.save_best_genome(parent.neuron.genome, score_achieved)
+                genome_util.save_best_genome(parent.neuron.genome, score_achieved)
         else:
             self.birds = [Bird() for _ in range(POPULATION_SIZE)]
-        
-        
-
-    def save_best_genome(self, genome, score):
-        BEST_GENOME_DIR.mkdir(exist_ok=True)
-        genome_path = BEST_GENOME_DIR / f"{BEST_GENOME_PREFIX}{score}.json"
-        if genome_path.exists():
-            return
-        with genome_path.open("w") as f:
-            json.dump(genome, f)
 
     def save_manual_genome(self):
         if self.latest_completed_top_genome is None:
             self.manual_save_status = "No completed generation yet"
             return
 
-        MANUAL_SAVE_DIR.mkdir(parents=True, exist_ok=True)
-        genome_path = MANUAL_SAVE_DIR / (
-            f"manual_best_genome_gen_{self.latest_completed_generation}"
-            f"_score_{self.latest_completed_score}.json"
+        saved = genome_util.save_manual_genome(
+            self.latest_completed_top_genome,
+            self.latest_completed_generation,
+            self.latest_completed_score,
         )
-        if genome_path.exists():
+        if not saved:
             self.manual_save_status = f"Already saved gen {self.latest_completed_generation}"
             return
 
-        with genome_path.open("w") as f:
-            json.dump(self.latest_completed_top_genome, f)
         self.manual_save_status = f"Saved gen {self.latest_completed_generation}"
 
     def average_generation_score(self):
@@ -164,26 +148,8 @@ class Game:
             return 0
         return sum(self.generation_scores) / len(self.generation_scores)
 
-    def best_genome_files(self):
-        if not BEST_GENOME_DIR.exists():
-            return []
-
-        genome_files = []
-        for genome_path in BEST_GENOME_DIR.glob(f"{BEST_GENOME_PREFIX}*.json"):
-            score_text = genome_path.stem.removeprefix(BEST_GENOME_PREFIX)
-            if score_text.isdigit():
-                genome_files.append((int(score_text), genome_path))
-        return genome_files
-
     def load_best_genome(self, bird):
-        genome_files = self.best_genome_files()
-        if genome_files:
-            _, genome_path = max(genome_files, key=lambda genome_file: genome_file[0])
-        else:
-            genome_path = Path("best_genome.json")
-
-        with genome_path.open() as f:
-            bird.neuron.genome = json.load(f)
+        bird.neuron.genome = genome_util.load_best_genome()
 
     def run(self):
         while True:
