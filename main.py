@@ -87,7 +87,45 @@ class Game:
         self.latest_completed_score = None
         self.manual_save_status = "No completed generation yet"
         self.manual_save_button = pygame.Rect(WIDTH - 260, 20, 230, 48)
+        self.training_state = None
         self.reset()
+
+    def save_training_state(self):
+        self.training_state = {
+            "birds": copy.deepcopy(self.birds),
+            "pipes": copy.deepcopy(self.pipes),
+            "score": self.score,
+            "dead": self.dead,
+            "best_fitness": self.best_fitness,
+            "generation": self.generation,
+            "best_score": self.best_score,
+        }
+
+    def restore_training_state(self):
+        if self.training_state is None:
+            self.birds = []
+            self.reset(record_completed=False)
+            return
+
+        self.birds = self.training_state["birds"]
+        self.pipes = self.training_state["pipes"]
+        self.score = self.training_state["score"]
+        self.dead = self.training_state["dead"]
+        self.best_fitness = self.training_state["best_fitness"]
+        self.generation = self.training_state["generation"]
+        self.best_score = self.training_state["best_score"]
+        self.training_state = None
+
+    def toggle_best_play(self):
+        global best_play
+        if best_play:
+            best_play = False
+            self.restore_training_state()
+            return
+
+        self.save_training_state()
+        best_play = True
+        self.reset(record_completed=False)
 
     def reset(self, record_completed=True):
         if best_play:
@@ -177,8 +215,7 @@ class Game:
                 if event.key == pygame.K_d:
                     draw = not draw
                 if event.key == pygame.K_b:
-                    best_play = not best_play
-                    self.reset(record_completed=False)
+                    self.toggle_best_play()
                 
                 
 
