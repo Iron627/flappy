@@ -22,6 +22,11 @@ class Bird:
     def __init__(self):
         self.x = 160
         self.size = 32
+        self.color = (
+            random.randint(60, 255),
+            random.randint(60, 255),
+            random.randint(60, 255),
+        )
         self.neuron = neat.NEAT()
         self.reset()
 
@@ -42,7 +47,7 @@ class Bird:
         self.y += self.vel
 
     def draw(self, screen):
-        pygame.draw.rect(screen, GREEN, self.rect())
+        pygame.draw.rect(screen, self.color, self.rect())
 
 
 class Pipe:
