@@ -57,11 +57,53 @@ class NEAT:
             {"in": 5, "out": 10**9, "weight": random.uniform(-1, 1), "enabled": True}
             
             ]
+    def check_cycle(self, a, b):
+        graph = {node: [] for node in self.nodes}
+        for conn in self.connections:
+            if conn["enabled"]:
+                x = conn["in"]
+                y = conn["out"]
+                graph[x].append(y)
+        visited = set()
+        def dfs(node):
+            if node == b:
+                return True
+            visited.add(node)
+            for neighbor in graph[node]:
+                if neighbor not in visited:
+                    if dfs(neighbor):
+                        return True
+            visited.remove(node)
+            return False
+        return dfs(b)
+    def topological_sort(self):
+        n_ins = {node: 0 for node in self.nodes.keys()}
+        graph = {node: [] for node in self.nodes}
+        for conn in self.connections:
+            if conn["enabled"]:
+                a = conn["in"]
+                b = conn["out"]
+                graph[a].append(b)
+                n_ins[b] += 1
+            else:
+                continue
+        q = [node for node in self.nodes if n_ins[node] == 0]
+        sorted = []
+        while q:
+            node = q.pop(0)
+            sorted.append(node)
+            for _ in graph[node]:
+                n_ins[_] -=1
+                if n_ins[_] == 0:
+                    q.append(_)
+        return sorted
     def mutate_connection(self):
         ins = list(self.nodes.keys())
         outs = [_ for _ in self.nodes.keys() if self.nodes[_] not in ["input","bias"]]
         a = random.choice(ins)
         b = random.choice(outs)
+        if self.check_cycle(a, b):
+            return
         if a == b:
             return
         if a > b:
@@ -110,7 +152,7 @@ class NEAT:
         for i, value in enumerate(inputs):
             values[i] = value
         values[5] = 1
-        for node in sorted(self.nodes.keys()):
+        for node in self.topological_sort():
             if self.nodes[node] in ["bias","input"]:
                 continue
             
