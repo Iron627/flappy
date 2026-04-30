@@ -166,7 +166,7 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.quit()
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and not best_play:
                 if self.manual_save_button.collidepoint(event.pos):
                     self.save_manual_genome()
             if event.type == pygame.KEYDOWN:
@@ -235,9 +235,8 @@ class Game:
 
     def draw(self):
         alive_count = sum(bird.alive for bird in self.birds)
-        mode_label = "Best Genome Play" if best_play else f"Alive: {alive_count} Generation: {self.generation}"
-        labels = [
-            mode_label,
+        labels = [] if best_play else [
+            f"Alive: {alive_count} Generation: {self.generation}",
             f"Best Score: {self.best_score}",
             f"Average Score: {self.average_generation_score():.2f}",
             f"Best Fitness: {self.best_fitness}",
@@ -257,7 +256,8 @@ class Game:
             for i, label in enumerate(labels):
                 text = self.font.render(label, True, WHITE)
                 self.screen.blit(text, (20, 30 + i * 45))
-            self.draw_manual_save_button()
+            if not best_play:
+                self.draw_manual_save_button()
 
              
         else:
@@ -268,7 +268,8 @@ class Game:
             for i, label in enumerate(labels):
                 text = self.font.render(label, True, WHITE)
                 self.screen.blit(text, (20, 30 + i * 45))
-            self.draw_manual_save_button()
+            if not best_play:
+                self.draw_manual_save_button()
 
         pygame.display.flip()
 
