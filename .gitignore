@@ -1,2 +1,4 @@
 best_genome.json
 best_genomes/
+__pycache__/
+.venv/
